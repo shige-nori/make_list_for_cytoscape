@@ -962,9 +962,18 @@
                         const text = e.target.result;
                         workbook = XLSX.read(text, { type: 'string' });
                     } else {
-                        // Excel形式
+                        // Excel形式：表示値を直接取得（CSV変換を経由しない）
+                        log('Excelファイルを読み込み中（表示値を使用）...', 'info');
                         const arrayBuffer = e.target.result;
-                        workbook = XLSX.read(arrayBuffer, { type: 'array' });
+                        // cellText: true でフォーマット済みテキストを読み込む
+                        workbook = XLSX.read(arrayBuffer, { 
+                            type: 'array', 
+                            cellText: true,
+                            cellDates: true,
+                            cellNF: true,
+                            cellStyles: true
+                        });
+                        log('Excelファイルの読み込みが完了しました（表示値を使用）', 'success');
                     }
                     
                     const sheetName = workbook.SheetNames[0];
@@ -976,12 +985,26 @@
                     for (let col = range.s.c; col <= range.e.c; col++) {
                         const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col });
                         const cell = sheet[cellAddress];
-                        headers.push(cell ? cell.v : `Column${col + 1}`);
+                        // セルの表示値 (.w) を優先的に使用
+                        let headerValue = cell ? (cell.w !== undefined ? cell.w : cell.v) : `Column${col + 1}`;
+                        headers.push(String(headerValue));
                     }
                     fileHeaders = headers;
                     
-                    // defval オプションで空セルも含めてデータを取得
-                    data = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+                    // データを取得する際も表示値を使用
+                    data = [];
+                    for (let row = range.s.r + 1; row <= range.e.r; row++) {
+                        const rowData = {};
+                        for (let col = range.s.c; col <= range.e.c; col++) {
+                            const cellAddress = XLSX.utils.encode_cell({ r: row, c: col });
+                            const cell = sheet[cellAddress];
+                            const header = headers[col];
+                            // セルの表示値 (.w) を優先的に使用
+                            let value = cell ? (cell.w !== undefined ? cell.w : cell.v) : '';
+                            rowData[header] = String(value !== undefined && value !== null ? value : '');
+                        }
+                        data.push(rowData);
+                    }
 
                     if (!data || data.length === 0) {
                         log('エラー: ファイルにデータがありません。', 'error');
@@ -1338,11 +1361,43 @@
                         continue;
                     }
 
-                    // Excelファイルに変換
-                    const worksheet = XLSX.utils.json_to_sheet(data);
+                    // Excelファイルに変換（書式設定を文字列にしてからデータを挿入）
+                    const headers = Object.keys(data[0]);
+                    const worksheet = {};
+                    
+                    // 範囲を設定
+                    const range = {
+                        s: { r: 0, c: 0 },
+                        e: { r: data.length, c: headers.length - 1 }
+                    };
+                    worksheet['!ref'] = XLSX.utils.encode_range(range);
+                    
+                    // ヘッダー行を挿入（書式：文字列）
+                    headers.forEach((header, colIdx) => {
+                        const cellAddress = XLSX.utils.encode_cell({ r: 0, c: colIdx });
+                        worksheet[cellAddress] = {
+                            t: 's',
+                            v: String(header),
+                            z: '@'  // 書式設定：文字列
+                        };
+                    });
+                    
+                    // データ行を挿入（書式：文字列）
+                    data.forEach((row, rowIdx) => {
+                        headers.forEach((header, colIdx) => {
+                            const cellAddress = XLSX.utils.encode_cell({ r: rowIdx + 1, c: colIdx });
+                            const value = row[header];
+                            worksheet[cellAddress] = {
+                                t: 's',
+                                v: String(value !== undefined && value !== null ? value : ''),
+                                z: '@'  // 書式設定：文字列
+                            };
+                        });
+                    });
+                    
                     const workbook = XLSX.utils.book_new();
                     XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1');
-                    const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+                    const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array', bookSST: false, cellStyles: true });
 
                     // ファイルを作成して書き込み
                     const fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
