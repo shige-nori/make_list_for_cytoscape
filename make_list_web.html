@@ -1119,11 +1119,11 @@
                 }
             });
 
-            generatedFiles['Network.xlsx'] = {
+            generatedFiles['Network.csv'] = {
                 data: edgeList,
                 description: '属性付きの生のエッジリスト'
             };
-            log(`完了: Network.xlsx を作成しました（${edgeList.length} エッジ）`, 'success');
+            log(`完了: Network.csv を作成しました（${edgeList.length} エッジ）`, 'success');
 
             // 2. Network with weight.csv の作成
             log('処理中: Network with weightを作成しています...', 'info');
@@ -1166,11 +1166,11 @@
                 return result;
             });
 
-            generatedFiles['Network with weight.xlsx'] = {
+            generatedFiles['Network with weight.csv'] = {
                 data: edgeWeightList,
                 description: 'エッジの重み付きリスト'
             };
-            log(`完了: Network with weight.xlsx を作成しました（${edgeWeightList.length} ユニークエッジ）`, 'success');
+            log(`完了: Network with weight.csv を作成しました（${edgeWeightList.length} ユニークエッジ）`, 'success');
 
             // 3. Node.csv の作成
             log('処理中: Nodeを作成しています...', 'info');
@@ -1215,11 +1215,11 @@
                 return result;
             });
 
-            generatedFiles['Node.xlsx'] = {
+            generatedFiles['Node.csv'] = {
                 data: nodeAttributeList,
                 description: 'ノード属性テーブル'
             };
-            log(`完了: Node.xlsx を作成しました（${nodeAttributeList.length} ノード）`, 'success');
+            log(`完了: Node.csv を作成しました（${nodeAttributeList.length} ノード）`, 'success');
 
             // 4. Node with classification.csv の作成
             log('処理中: Node with classificationを作成しています...', 'info');
@@ -1239,11 +1239,11 @@
 
             const nodeTypeList = Array.from(nodeTypeMap.values());
 
-            generatedFiles['Node with classification.xlsx'] = {
+            generatedFiles['Node with classification.csv'] = {
                 data: nodeTypeList,
                 description: 'ノード分類テーブル'
             };
-            log(`完了: Node with classification.xlsx を作成しました（${nodeTypeList.length} ノード）`, 'success');
+            log(`完了: Node with classification.csv を作成しました（${nodeTypeList.length} ノード）`, 'success');
 
             log('すべての処理が完了しました！', 'success');
 
@@ -1258,10 +1258,10 @@
             // 統計情報の表示
             resultsGrid.innerHTML = '';
             const stats = [
-                { label: 'Network.xlsx', count: generatedFiles['Network.xlsx'].data.length, unit: 'エッジ' },
-                { label: 'Network with weight.xlsx', count: generatedFiles['Network with weight.xlsx'].data.length, unit: 'ユニークエッジ' },
-                { label: 'Node.xlsx', count: generatedFiles['Node.xlsx'].data.length, unit: 'ノード' },
-                { label: 'Node with classification.xlsx', count: generatedFiles['Node with classification.xlsx'].data.length, unit: 'ノード' }
+                { label: 'Network.csv', count: generatedFiles['Network.csv'].data.length, unit: 'エッジ' },
+                { label: 'Network with weight.csv', count: generatedFiles['Network with weight.csv'].data.length, unit: 'ユニークエッジ' },
+                { label: 'Node.csv', count: generatedFiles['Node.csv'].data.length, unit: 'ノード' },
+                { label: 'Node with classification.csv', count: generatedFiles['Node with classification.csv'].data.length, unit: 'ノード' }
             ];
 
             stats.forEach(stat => {
@@ -1281,7 +1281,7 @@
             Object.keys(generatedFiles).forEach(fileName => {
                 const tab = document.createElement('button');
                 tab.className = `preview-tab ${isFirst ? 'active' : ''}`;
-                tab.textContent = fileName.replace('.xlsx', '');
+                tab.textContent = fileName.replace('.csv', '');
                 tab.onclick = () => showPreview(fileName, tab);
                 previewTabs.appendChild(tab);
                 if (isFirst) {
@@ -1361,52 +1361,35 @@
                         continue;
                     }
 
-                    // Excelファイルに変換（書式設定を文字列にしてからデータを挿入）
-                    const headers = Object.keys(data[0]);
-                    const worksheet = {};
-                    
-                    // 範囲を設定
-                    const range = {
-                        s: { r: 0, c: 0 },
-                        e: { r: data.length, c: headers.length - 1 }
-                    };
-                    worksheet['!ref'] = XLSX.utils.encode_range(range);
-                    
-                    // ヘッダー行を挿入（書式：文字列）
-                    headers.forEach((header, colIdx) => {
-                        const cellAddress = XLSX.utils.encode_cell({ r: 0, c: colIdx });
-                        worksheet[cellAddress] = {
-                            t: 's',
-                            v: String(header),
-                            z: '@'  // 書式設定：文字列
-                        };
-                    });
-                    
-                    // データ行を挿入（書式：文字列）
-                    data.forEach((row, rowIdx) => {
-                        headers.forEach((header, colIdx) => {
-                            const cellAddress = XLSX.utils.encode_cell({ r: rowIdx + 1, c: colIdx });
-                            const value = row[header];
-                            worksheet[cellAddress] = {
-                                t: 's',
-                                v: String(value !== undefined && value !== null ? value : ''),
-                                z: '@'  // 書式設定：文字列
-                            };
+                        // CSV形式で保存（各値をダブルクォーテーションで囲む、カンマ区切り）
+                        const headers = Object.keys(data[0]);
+
+                        function escapeCsv(val) {
+                            const text = String(val !== undefined && val !== null ? val : '');
+                            return '"' + text.replace(/"/g, '""') + '"';
+                        }
+
+                        const lines = [];
+                        // ヘッダー行
+                        lines.push(headers.map(h => escapeCsv(h)).join(','));
+
+                        // データ行
+                        data.forEach(row => {
+                            const rowVals = headers.map(h => escapeCsv(row[h]));
+                            lines.push(rowVals.join(','));
                         });
-                    });
-                    
-                    const workbook = XLSX.utils.book_new();
-                    XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1');
-                    const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array', bookSST: false, cellStyles: true });
 
-                    // ファイルを作成して書き込み
-                    const fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
-                    const writable = await fileHandle.createWritable();
-                    await writable.write(excelBuffer);
-                    await writable.close();
+                        // UTF-8 BOM を付与して Excel 互換性を確保
+                        const csvContent = '\uFEFF' + lines.join('\r\n');
 
-                    savedCount++;
-                    log(`${fileName} を保存しました。`, 'success');
+                        const csvFileName = fileName.endsWith('.csv') ? fileName : fileName.replace(/\.xlsx$/i, '.csv');
+                        const fileHandle = await dirHandle.getFileHandle(csvFileName, { create: true });
+                        const writable = await fileHandle.createWritable();
+                        await writable.write(new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }));
+                        await writable.close();
+
+                        savedCount++;
+                        log(`${csvFileName} を保存しました。`, 'success');
                 }
 
                 saveStatus.className = 'save-status success';
