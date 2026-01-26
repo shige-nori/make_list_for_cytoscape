@@ -1137,18 +1137,23 @@
                         Target: edge.Target,
                         EdgeWeight: 0
                     };
-                    // 各属性用のSetを作成
+                    // 各属性用の配列を作成（重複を保持）
                     attrColumns.forEach(col => {
-                        item[`${col}_set`] = new Set();
+                        item[`${col}_values`] = [];
                     });
                     edgeWeightMap.set(key, item);
                 }
                 const item = edgeWeightMap.get(key);
                 item.EdgeWeight++;
-                // 属性値を追加
+                // 属性値を追加（重複を保持）
                 attrColumns.forEach(col => {
-                    if (edge[col]) {
-                        item[`${col}_set`].add(String(edge[col]));
+                    const value = edge[col];
+                    if (value === undefined || value === null) {
+                        item[`${col}_values`].push(' ');
+                    } else if (value === '') {
+                        item[`${col}_values`].push(' ');
+                    } else {
+                        item[`${col}_values`].push(String(value));
                     }
                 });
             });
@@ -1159,9 +1164,9 @@
                     Target: item.Target,
                     EdgeWeight: item.EdgeWeight
                 };
-                // Setを文字列に変換
+                // 配列を文字列に変換（重複を保持）
                 attrColumns.forEach(col => {
-                    result[col] = Array.from(item[`${col}_set`]).join('| ');
+                    result[col] = item[`${col}_values`].join('|');
                 });
                 return result;
             });
@@ -1185,18 +1190,23 @@
                                 Node: node,
                                 count: 0
                             };
-                            // 各属性用のSetを作成
+                            // 各属性用の配列を作成（重複を保持）
                             attrColumns.forEach(attrCol => {
-                                item[`${attrCol}_set`] = new Set();
+                                item[`${attrCol}_values`] = [];
                             });
                             nodeAttributeMap.set(node, item);
                         }
                         const item = nodeAttributeMap.get(node);
                         item.count++;
-                        // 属性値を追加
+                        // 属性値を追加（重複を保持）
                         attrColumns.forEach(attrCol => {
-                            if (row[attrCol]) {
-                                item[`${attrCol}_set`].add(String(row[attrCol]));
+                            const value = row[attrCol];
+                            if (value === undefined || value === null) {
+                                item[`${attrCol}_values`].push(' ');
+                            } else if (value === '') {
+                                item[`${attrCol}_values`].push(' ');
+                            } else {
+                                item[`${attrCol}_values`].push(String(value));
                             }
                         });
                     }
@@ -1207,9 +1217,9 @@
                 const result = {
                     Node: item.Node
                 };
-                // Setを文字列に変換
+                // 配列を文字列に変換（重複を保持）
                 attrColumns.forEach(col => {
-                    result[col] = Array.from(item[`${col}_set`]).join('| ');
+                    result[col] = item[`${col}_values`].join('|');
                 });
                 result.NodeWeight = item.count;
                 return result;
